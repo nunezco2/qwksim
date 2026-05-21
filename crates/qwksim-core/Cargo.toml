@@ -23,6 +23,15 @@ parquet = "58"
 # only place qwksim-core deviates from Q13.7 = e2 anyhow-everywhere
 # at the library boundary).
 thiserror = "2"
+# Hierarchical RNG (master → replicate → stream) per §3.3; ChaCha20
+# is deterministic across platforms and reseedable from a 32-byte
+# seed (Q6′ = R2).
+rand_chacha = "0.9"
+rand_core = "0.9"
+# Stable domain-separated hashing used to derive replicate and
+# stream seeds. Same algorithm family as the qwksim-qpu build.rs
+# vendor-hash gate.
+sha2 = "0.10"
 
 [dev-dependencies]
 # Criterion harness for the three b-series benchmarks owned by
