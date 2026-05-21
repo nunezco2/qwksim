@@ -9,3 +9,10 @@
 //! observable simulation state is written to the Parquet output layer.
 //!
 //! See `plan/solution_plan.md` §3 for the architectural specification.
+
+/// Sentinel version string mirroring this crate's `Cargo.toml`.
+///
+/// Used by the integration smoke test to assert that the crate
+/// compiles and links correctly. Real callers should prefer
+/// `env!("CARGO_PKG_VERSION")` at their own call site.
+pub const VERSION: &str = env!("CARGO_PKG_VERSION");
