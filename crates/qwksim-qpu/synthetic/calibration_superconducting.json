@@ -1,0 +1,16 @@
+{
+  "modality": "Superconducting",
+  "source": "qwksim-synthetic-v1",
+  "qubits": 50,
+  "topology": "heavy-hex",
+  "t1_us": 80,
+  "t2_us": 60,
+  "fidelity_1q": 0.999,
+  "fidelity_2q": 0.993,
+  "fidelity_readout": 0.985,
+  "gate_time_1q_ns": 30,
+  "gate_time_2q_ns": 200,
+  "readout_time_us": 1,
+  "calibration_period_hours": 4,
+  "calibration_outage_minutes": 15
+}

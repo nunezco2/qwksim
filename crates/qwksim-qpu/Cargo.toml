@@ -7,3 +7,8 @@ rust-version.workspace = true
 authors.workspace = true
 license.workspace = true
 repository.workspace = true
+build = "build.rs"
+
+[build-dependencies]
+sha2 = "0.10"
+toml = { version = "0.8", default-features = false, features = ["parse"] }

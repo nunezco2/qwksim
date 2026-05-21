@@ -1,0 +1,16 @@
+{
+  "modality": "TrappedIon",
+  "source": "qwksim-synthetic-v1",
+  "qubits": 30,
+  "topology": "all-to-all",
+  "t1_seconds": 10,
+  "t2_seconds": 1,
+  "fidelity_1q": 0.9999,
+  "fidelity_2q": 0.995,
+  "fidelity_readout": 0.995,
+  "gate_time_1q_us": 5,
+  "gate_time_2q_us": 200,
+  "readout_time_us": 100,
+  "calibration_period_hours": 8,
+  "calibration_outage_minutes": 30
+}

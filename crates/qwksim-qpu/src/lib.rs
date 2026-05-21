@@ -14,3 +14,10 @@
 //!
 //! See `plan/solution_plan.md` §2.3 for the type sketches and §6 for
 //! how this composes with bargaining utilities.
+//!
+//! Calibration data is materialised in `$OUT_DIR` at build time by
+//! `build.rs`, sourced either from `data/vendor/` (when present and
+//! SHA-256-matched against `vendor.toml`) or from the deterministic
+//! synthetic placeholder shipped under `synthetic/`. See
+//! `vendor.toml` for the manifest and Q17.2 = (vc3) for the licence
+//! status.

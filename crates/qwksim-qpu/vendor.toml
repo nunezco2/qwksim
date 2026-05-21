@@ -1,0 +1,30 @@
+# Vendor calibration manifest for qwksim-qpu.
+#
+# build.rs reads this file and, for each [[file]] entry, materialises
+# a calibration file in `$OUT_DIR` that the crate can include at
+# compile time. Source resolution:
+#
+#   - if `data/vendor/<name>` exists at the workspace root AND its
+#     SHA-256 matches `sha256`, the vendor file is used;
+#   - otherwise the build.rs falls back to a deterministic synthetic
+#     placeholder shipped under `synthetic/<name>`.
+#
+# As of Q17.2 = (vc3) the vendor-data licence audit is pending, so
+# every entry below carries the sentinel hash
+# `PLACEHOLDER_NOT_YET_AUDITED`, which never matches any real file's
+# SHA-256. The synthetic fallback path is therefore always taken
+# today. When real vendor data is approved for redistribution, drop
+# the file into `data/vendor/` and replace the sentinel with its
+# lowercase-hex SHA-256.
+
+[[file]]
+name = "calibration_superconducting.json"
+sha256 = "PLACEHOLDER_NOT_YET_AUDITED"
+description = "Superconducting QPU calibration snapshot (Site_1 anchor in headline)."
+source = "IBM Quantum public calibration sheet — TBD when licence audit clears."
+
+[[file]]
+name = "calibration_trapped_ion.json"
+sha256 = "PLACEHOLDER_NOT_YET_AUDITED"
+description = "Trapped-ion QPU calibration snapshot (Site_2 anchor in headline)."
+source = "IonQ public calibration sheet — TBD when licence audit clears."
