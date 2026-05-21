@@ -1,0 +1,9 @@
+[package]
+name = "qwksim-qpu"
+description = "Per-modality QPU models for qwksim: superconducting and trapped-ion in the headline, photonic stub; OU calibration drift, compilation cache, mid-circuit feedback latency, and fidelity-class queue."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true

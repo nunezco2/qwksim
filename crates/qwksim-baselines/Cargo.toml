@@ -1,0 +1,9 @@
+[package]
+name = "qwksim-baselines"
+description = "Baseline schedulers for qwksim: FCFS, EASY-backfilling, HEFT, and the centralised cooperative bargainer (FLAG-G closed: invokes qwksim-bargain with a global view and a single Nash product across all super-sites)."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true

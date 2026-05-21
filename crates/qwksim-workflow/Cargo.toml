@@ -1,0 +1,9 @@
+[package]
+name = "qwksim-workflow"
+description = "DAG and workload model for qwksim: task descriptor schema, the six workflow categories (VQE, QAOA, QML, QC-MC/QPE, pure-classical, error-mitigation tomography), and the iterative-loop runtime with cv2 noisy-objective convergence."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true

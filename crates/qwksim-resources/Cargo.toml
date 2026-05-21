@@ -1,0 +1,9 @@
+[package]
+name = "qwksim-resources"
+description = "HPC, GPU, memory, scratch, and intra-site network resource models for qwksim, including per-resource agent traits, fluid bandwidth pools, and shared-constraint rivalry computation."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true

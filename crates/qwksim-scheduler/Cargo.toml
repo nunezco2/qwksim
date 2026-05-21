@@ -1,0 +1,9 @@
+[package]
+name = "qwksim-scheduler"
+description = "Common Scheduler trait for qwksim plus the dual-view abstraction (oracular global state vs. local + τ_adv-stale advertised summaries) used to isolate mechanism from information regime in the 2×2 factorial."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true

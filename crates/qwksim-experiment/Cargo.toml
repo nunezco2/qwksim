@@ -1,0 +1,9 @@
+[package]
+name = "qwksim-experiment"
+description = "Experiment harness for qwksim: hierarchical TOML manifest loader, scenario expansion, replicate orchestration with rayon outer parallelism, Parquet output with embedded provenance metadata, and CRN seeding discipline."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
