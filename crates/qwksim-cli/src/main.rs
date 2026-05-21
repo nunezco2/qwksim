@@ -20,6 +20,11 @@
 //!
 //! See `plan/solution_plan.md` §2.10.
 
+use mimalloc::MiMalloc;
+
+#[global_allocator]
+static GLOBAL: MiMalloc = MiMalloc;
+
 fn main() {
     // Sub-command dispatch wired in T6.x (CLI scaffolding lands then).
 }
