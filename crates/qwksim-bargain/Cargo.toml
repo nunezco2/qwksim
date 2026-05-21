@@ -7,3 +7,18 @@ rust-version.workspace = true
 authors.workspace = true
 license.workspace = true
 repository.workspace = true
+
+[dev-dependencies]
+# Criterion harness for the two b-series benchmarks owned by
+# qwksim-bargain (b2 bargain-solver Nash-product + best-response,
+# b3 advertisement-broadcast aggregation per τ_adv tick). Real
+# bodies land in T4.x; today these are no-op stubs.
+criterion = "0.5"
+
+[[bench]]
+name = "bargain_solver"
+harness = false
+
+[[bench]]
+name = "advert_aggregation"
+harness = false
