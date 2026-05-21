@@ -1,0 +1,13 @@
+[package]
+name = "qwksim-cli"
+description = "Command-line interface for qwksim: single binary exposing the run / sweep / replay / perturb / diff / report sub-commands."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[[bin]]
+name = "qwksim"
+path = "src/main.rs"

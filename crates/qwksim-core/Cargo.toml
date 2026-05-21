@@ -1,0 +1,9 @@
+[package]
+name = "qwksim-core"
+description = "Discrete-event simulator kernel for qwksim: simulator time, event queue, deterministic RNG hierarchy, and telemetry sink trait."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true

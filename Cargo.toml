@@ -1,3 +1,22 @@
 [workspace]
 resolver = "2"
-members = []
+members = [
+    "crates/qwksim-core",
+    "crates/qwksim-resources",
+    "crates/qwksim-qpu",
+    "crates/qwksim-workflow",
+    "crates/qwksim-bargain",
+    "crates/qwksim-scheduler",
+    "crates/qwksim-baselines",
+    "crates/qwksim-experiment",
+    "crates/qwksim-analysis",
+    "crates/qwksim-cli",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.85"
+authors = ["qwksim contributors"]
+license = "Apache-2.0"
+repository = "https://github.com/nunezco2/qwksim"

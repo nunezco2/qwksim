@@ -1,0 +1,9 @@
+[package]
+name = "qwksim-bargain"
+description = "Cooperative Nash-bargaining solver for qwksim: Nash-product evaluator, bounded-round best-response loop, advertisement protocol, utility-function catalogue, and disagreement-point (FCFS-on-stale baseline) evaluator."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true

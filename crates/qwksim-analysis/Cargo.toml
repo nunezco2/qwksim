@@ -1,0 +1,9 @@
+[package]
+name = "qwksim-analysis"
+description = "Analysis and figure factory for qwksim: lazy Aggregator API over per-run Parquet, statistical machinery (Wilcoxon signed-rank, Cliff's δ, hypervolume, Pareto extraction), and plotters-driven figure factory powering the qwksim report artefact."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
