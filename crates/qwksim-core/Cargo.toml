@@ -8,6 +8,22 @@ authors.workspace = true
 license.workspace = true
 repository.workspace = true
 
+[features]
+# Gate emission of per-bargaining-round telemetry records (tg3 in
+# Q11.6). Off by default (tg2 is the headline); flip on for
+# debugging / validation runs.
+per-round-telemetry = []
+
+[dependencies]
+# Q13.5 = (o3): write Parquet via arrow / parquet; downstream
+# qwksim-analysis reads it back via polars.
+arrow = "58"
+parquet = "58"
+# Concrete error enum for the telemetry-sink public surface (the
+# only place qwksim-core deviates from Q13.7 = e2 anyhow-everywhere
+# at the library boundary).
+thiserror = "2"
+
 [dev-dependencies]
 # Criterion harness for the three b-series benchmarks owned by
 # qwksim-core (b1 event-queue, b4 parquet-write, b5 end-to-end).

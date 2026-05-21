@@ -9,3 +9,5 @@
 //! observable simulation state is written to the Parquet output layer.
 //!
 //! See `plan/solution_plan.md` §3 for the architectural specification.
+
+pub mod telemetry;
