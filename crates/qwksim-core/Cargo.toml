@@ -7,3 +7,23 @@ rust-version.workspace = true
 authors.workspace = true
 license.workspace = true
 repository.workspace = true
+
+[dev-dependencies]
+# Criterion harness for the three b-series benchmarks owned by
+# qwksim-core (b1 event-queue, b4 parquet-write, b5 end-to-end).
+# Real bodies land alongside the corresponding implementations in
+# later phases (T1.x, T6.x); today these are no-op stubs that
+# `cargo bench --no-run` must still build.
+criterion = "0.5"
+
+[[bench]]
+name = "event_queue"
+harness = false
+
+[[bench]]
+name = "parquet_write"
+harness = false
+
+[[bench]]
+name = "end_to_end"
+harness = false
