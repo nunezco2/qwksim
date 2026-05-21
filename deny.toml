@@ -15,7 +15,13 @@ all-features = true
 [advisories]
 version = 2
 yanked = "warn"
-ignore = []
+ignore = [
+    # paste 1.0.15 is unmaintained (announced by dtolnay; RUSTSEC-2024-0436).
+    # Reached transitively via `parquet -> paste`. No upstream fix yet — parquet
+    # has not switched to `pastey` or an alternative. Reassess when parquet ≥ 59
+    # ships; if still present, file an upstream issue.
+    "RUSTSEC-2024-0436",
+]
 
 [bans]
 multiple-versions = "warn"

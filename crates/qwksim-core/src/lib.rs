@@ -10,6 +10,7 @@
 //!
 //! See `plan/solution_plan.md` §3 for the architectural specification.
 
+pub mod telemetry;
 /// Sentinel version string mirroring this crate's `Cargo.toml`.
 ///
 /// Used by the integration smoke test to assert that the crate
