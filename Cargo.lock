@@ -1122,6 +1122,13 @@ dependencies = [
 [[package]]
 name = "qwksim-experiment"
 version = "0.1.0"
+dependencies = [
+ "arrow",
+ "parquet",
+ "qwksim-baselines",
+ "qwksim-core",
+ "qwksim-resources",
+]
 
 [[package]]
 name = "qwksim-qpu"
