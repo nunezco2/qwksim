@@ -16,3 +16,5 @@
 //! comparisons across mechanisms.
 //!
 //! See `plan/solution_plan.md` §2.8.
+
+pub mod smoke;
