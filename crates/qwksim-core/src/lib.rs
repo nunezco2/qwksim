@@ -11,6 +11,7 @@
 //! See `plan/solution_plan.md` §3 for the architectural specification.
 
 pub mod event;
+pub mod queue;
 pub mod rng;
 pub mod telemetry;
 
