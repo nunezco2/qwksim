@@ -7,3 +7,8 @@ rust-version.workspace = true
 authors.workspace = true
 license.workspace = true
 repository.workspace = true
+
+[dependencies]
+# Scheduler::on_event sees core Event types (Q5.2 = Z 2x2 factorial
+# means every mechanism runs against the same DES event stream).
+qwksim-core = { path = "../qwksim-core" }
