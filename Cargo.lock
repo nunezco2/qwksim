@@ -1129,6 +1129,10 @@ dependencies = [
 [[package]]
 name = "qwksim-resources"
 version = "0.1.0"
+dependencies = [
+ "qwksim-core",
+ "qwksim-scheduler",
+]
 
 [[package]]
 name = "qwksim-scheduler"
