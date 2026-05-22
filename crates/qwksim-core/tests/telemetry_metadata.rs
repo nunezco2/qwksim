@@ -1,6 +1,7 @@
-//! Roundtrip test: write an empty Parquet file with the full
-//! `Provenance` block embedded as `key_value_metadata`, re-open it,
-//! and verify every field is preserved (Q15.2 = pf3).
+//! Roundtrip test: open a `ParquetSink` against a directory with
+//! the full `Provenance` block, close it without emitting any
+//! records, then re-open the per-record Parquet files and verify
+//! every provenance field round-trips on each one (Q15.2 = pf3).
 //!
 //! This is the headline acceptance gate for T0.11.
 
@@ -28,17 +29,8 @@ tau_adv_ms = 10
     }
 }
 
-#[test]
-fn roundtrip_preserves_every_provenance_field() {
-    let dir = tempdir();
-    let path = dir.join("empty.parquet");
-
-    let prov = sample_provenance();
-
-    let sink = ParquetSink::create(&path, &prov).expect("open sink");
-    Box::new(sink).finish().expect("finish sink");
-
-    let file = File::open(&path).expect("reopen parquet");
+fn read_provenance(path: &std::path::Path) -> Provenance {
+    let file = File::open(path).expect("reopen parquet");
     let reader = ParquetRecordBatchReaderBuilder::try_new(file).expect("parquet builder");
     let kv = reader
         .metadata()
@@ -46,42 +38,62 @@ fn roundtrip_preserves_every_provenance_field() {
         .key_value_metadata()
         .expect("key_value_metadata present")
         .clone();
-
-    let read_back = Provenance::from_key_values(&kv);
-
-    assert_eq!(read_back.git_commit, prov.git_commit);
-    assert_eq!(read_back.lockfile_hash, prov.lockfile_hash);
-    assert_eq!(read_back.scenario_toml, prov.scenario_toml);
-    assert_eq!(read_back.seed, prov.seed);
-    assert_eq!(read_back.simulator_version, prov.simulator_version);
-    assert_eq!(
-        read_back.vendor_calibration_sha256,
-        prov.vendor_calibration_sha256
-    );
-    assert_eq!(read_back.host, prov.host);
+    Provenance::from_key_values(&kv)
 }
 
-#[test]
-fn metadata_block_contains_all_qwksim_keys() {
-    let dir = tempdir();
-    let path = dir.join("empty_keys.parquet");
-    let prov = sample_provenance();
-
-    let sink = ParquetSink::create(&path, &prov).expect("open sink");
-    Box::new(sink).finish().expect("finish sink");
-
-    let file = File::open(&path).expect("reopen parquet");
+fn read_keys(path: &std::path::Path) -> Vec<String> {
+    let file = File::open(path).expect("reopen parquet");
     let reader = ParquetRecordBatchReaderBuilder::try_new(file).expect("parquet builder");
-    let keys: Vec<String> = reader
+    reader
         .metadata()
         .file_metadata()
         .key_value_metadata()
         .expect("metadata present")
         .iter()
         .map(|kv| kv.key.clone())
-        .collect();
+        .collect()
+}
 
-    for required in [
+#[test]
+fn roundtrip_preserves_every_provenance_field() {
+    let dir = tempdir();
+    let prov = sample_provenance();
+
+    let sink = ParquetSink::create(&dir, &prov).expect("open sink");
+    Box::new(sink).finish().expect("finish sink");
+
+    // The same provenance is embedded in every per-record file;
+    // assert it round-trips on both.
+    for path in [
+        ParquetSink::workflow_event_path(&dir),
+        ParquetSink::iteration_event_path(&dir),
+    ] {
+        let read_back = read_provenance(&path);
+        assert_eq!(read_back.git_commit, prov.git_commit, "{path:?}");
+        assert_eq!(read_back.lockfile_hash, prov.lockfile_hash, "{path:?}");
+        assert_eq!(read_back.scenario_toml, prov.scenario_toml, "{path:?}");
+        assert_eq!(read_back.seed, prov.seed, "{path:?}");
+        assert_eq!(
+            read_back.simulator_version, prov.simulator_version,
+            "{path:?}"
+        );
+        assert_eq!(
+            read_back.vendor_calibration_sha256, prov.vendor_calibration_sha256,
+            "{path:?}"
+        );
+        assert_eq!(read_back.host, prov.host, "{path:?}");
+    }
+}
+
+#[test]
+fn metadata_block_contains_all_qwksim_keys() {
+    let dir = tempdir();
+    let prov = sample_provenance();
+
+    let sink = ParquetSink::create(&dir, &prov).expect("open sink");
+    Box::new(sink).finish().expect("finish sink");
+
+    let required = [
         "qwksim.git_commit",
         "qwksim.lockfile_hash",
         "qwksim.scenario_toml",
@@ -89,11 +101,19 @@ fn metadata_block_contains_all_qwksim_keys() {
         "qwksim.simulator_version",
         "qwksim.vendor_calibration_sha256",
         "qwksim.host",
+    ];
+
+    for path in [
+        ParquetSink::workflow_event_path(&dir),
+        ParquetSink::iteration_event_path(&dir),
     ] {
-        assert!(
-            keys.iter().any(|k| k == required),
-            "expected key {required:?} in metadata, got {keys:?}"
-        );
+        let keys = read_keys(&path);
+        for key in required {
+            assert!(
+                keys.iter().any(|k| k == key),
+                "{path:?}: expected key {key:?} in metadata, got {keys:?}"
+            );
+        }
     }
 }
 
