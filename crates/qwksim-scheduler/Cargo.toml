@@ -11,4 +11,4 @@ repository.workspace = true
 [dependencies]
 # Scheduler::on_event sees core Event types (Q5.2 = Z 2x2 factorial
 # means every mechanism runs against the same DES event stream).
-qwksim-core = { path = "../qwksim-core" }
+qwksim-core = { path = "../qwksim-core", version = "0.1.0" }
