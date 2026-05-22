@@ -32,6 +32,12 @@ rand_core = "0.9"
 # stream seeds. Same algorithm family as the qwksim-qpu build.rs
 # vendor-hash gate.
 sha2 = "0.10"
+# Per-replicate `current_thread` runtime for the (M-A) pure-DES +
+# tokio-ergonomics architecture (FLAG-M closed). `rt` is enough —
+# no I/O, no timers, no multi-thread runtime. `enable_time` is
+# *not* requested: simulator time is the DES logical clock, never
+# wall-clock.
+tokio = { version = "1", features = ["rt"], default-features = false }
 
 [dev-dependencies]
 # Criterion harness for the three b-series benchmarks owned by

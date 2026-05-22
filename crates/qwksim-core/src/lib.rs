@@ -13,6 +13,7 @@
 pub mod event;
 pub mod queue;
 pub mod rng;
+pub mod sim;
 pub mod telemetry;
 
 /// Sentinel version string mirroring this crate's `Cargo.toml`.
