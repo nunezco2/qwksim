@@ -15,6 +15,7 @@
 //! `qwksim-qpu` crate.
 
 pub mod bandwidth;
+pub mod contention;
 pub mod gpu;
 pub mod hpc;
 pub mod network;
@@ -22,6 +23,7 @@ pub mod portal;
 pub mod scratch;
 
 pub use bandwidth::{Bandwidth, MemoryBandwidthPool, StreamId};
+pub use contention::ResourceContentionView;
 pub use gpu::GpuPoolAgent;
 pub use hpc::HpcPartitionAgent;
 pub use network::{ActiveStream, FluidBandwidthPool, FluidPoolSummary};
