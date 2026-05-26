@@ -1228,6 +1228,10 @@ dependencies = [
 [[package]]
 name = "qwksim-workflow"
 version = "0.1.0"
+dependencies = [
+ "qwksim-core",
+ "thiserror",
+]
 
 [[package]]
 name = "r-efi"

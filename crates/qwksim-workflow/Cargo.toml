@@ -8,5 +8,11 @@ authors.workspace = true
 license.workspace = true
 repository.workspace = true
 
+[dependencies]
+# Concrete Task / Dag types reuse SimTime from qwksim-core.
+qwksim-core = { path = "../qwksim-core", version = "0.1.0" }
+# Concrete error enum for the Dag validator's public surface.
+thiserror = "2"
+
 [lints]
 workspace = true
