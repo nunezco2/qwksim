@@ -12,6 +12,11 @@ repository.workspace = true
 qwksim-core = { path = "../qwksim-core", version = "0.1.0" }
 qwksim-baselines = { path = "../qwksim-baselines", version = "0.1.0" }
 qwksim-resources = { path = "../qwksim-resources", version = "0.1.0" }
+# M/M/1 validation harness samples exponential inter-arrival and
+# service times via the same ChaCha20Rng that gates Q6′ = R2
+# deterministic replay.
+rand_chacha = "0.9"
+rand_core = "0.9"
 
 [dev-dependencies]
 # Integration tests read back the smoke run's Parquet output to

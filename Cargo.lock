@@ -1128,6 +1128,8 @@ dependencies = [
  "qwksim-baselines",
  "qwksim-core",
  "qwksim-resources",
+ "rand_chacha",
+ "rand_core",
 ]
 
 [[package]]
