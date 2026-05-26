@@ -109,7 +109,13 @@ impl Fcfs {
     }
 
     fn start(&mut self, start: SimTime, cores: u32, service_ns: SimTime) -> SimTime {
-        self.partition.accept(Allocation { cores }, start);
+        self.partition.accept(
+            Allocation {
+                cores,
+                ..Default::default()
+            },
+            start,
+        );
         let completion = start.saturating_add(service_ns);
         *self.in_flight.entry(completion).or_insert(0) += cores;
         completion
@@ -119,7 +125,13 @@ impl Fcfs {
         let completed: Vec<SimTime> = self.in_flight.range(..=now).map(|(&t, _)| t).collect();
         for t in completed {
             let cores = self.in_flight.remove(&t).unwrap();
-            self.partition.release(&Allocation { cores }, t);
+            self.partition.release(
+                &Allocation {
+                    cores,
+                    ..Default::default()
+                },
+                t,
+            );
         }
     }
 

@@ -64,6 +64,9 @@ impl ResourceAgent for HpcPartitionAgent {
         AdvertisedSummary {
             free_cores: self.true_free_cores(),
             total_cores: self.total_cores,
+            // HPC partition does not own GPUs; the GPU pool agent
+            // populates those fields on its own summary.
+            ..Default::default()
         }
     }
 
@@ -102,7 +105,10 @@ mod tests {
     use qwksim_scheduler::{AdvertisedState, GlobalState, LocalState};
 
     fn alloc(cores: u32) -> Allocation {
-        Allocation { cores }
+        Allocation {
+            cores,
+            ..Default::default()
+        }
     }
 
     #[test]
