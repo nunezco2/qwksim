@@ -12,6 +12,8 @@ repository.workspace = true
 qwksim-core = { path = "../qwksim-core", version = "0.1.0" }
 qwksim-baselines = { path = "../qwksim-baselines", version = "0.1.0" }
 qwksim-resources = { path = "../qwksim-resources", version = "0.1.0" }
+# T2.11 VQE-on-FCFS smoke needs the workflow / iter / vqe types.
+qwksim-workflow = { path = "../qwksim-workflow", version = "0.1.0" }
 # M/M/1 validation harness samples exponential inter-arrival and
 # service times via the same ChaCha20Rng that gates Q6′ = R2
 # deterministic replay.
