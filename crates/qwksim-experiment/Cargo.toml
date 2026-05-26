@@ -23,3 +23,6 @@ rand_core = "0.9"
 # verify schema, record count, and provenance metadata.
 arrow = "58"
 parquet = "58"
+
+[lints]
+workspace = true

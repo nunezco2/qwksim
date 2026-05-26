@@ -12,3 +12,6 @@ repository.workspace = true
 qwksim-core = { path = "../qwksim-core", version = "0.1.0" }
 qwksim-scheduler = { path = "../qwksim-scheduler", version = "0.1.0" }
 qwksim-resources = { path = "../qwksim-resources", version = "0.1.0" }
+
+[lints]
+workspace = true

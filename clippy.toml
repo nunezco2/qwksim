@@ -1,0 +1,31 @@
+# clippy configuration for qwksim.
+#
+# `disallowed-methods` bans iteration-shaped methods on
+# `std::collections::HashMap`. Q6′ = R2 requires
+# bit-deterministic per-replicate replay; `HashMap`'s default hasher
+# is process-randomised, so any iteration over a `HashMap` is a
+# non-deterministic dependency on simulator state. `BTreeMap`
+# (key-ordered) is the canonical replacement.
+#
+# The lint itself is set to `deny` at the workspace level via
+# `[workspace.lints.clippy]` in the root `Cargo.toml`.
+#
+# Per-call-site exceptions (e.g. the `CompilationCache` exception
+# planned for T3.x in `qwksim-qpu`) opt out with
+#
+#     #[allow(clippy::disallowed_methods)] // <reason>
+#
+# attached to the offending item or block. The reason should cite
+# the documented exception.
+
+disallowed-methods = [
+    { path = "std::collections::HashMap::iter", reason = "Iterating a HashMap on a simulator-stateful path breaks Q6' = R2 deterministic replay; use BTreeMap." },
+    { path = "std::collections::HashMap::iter_mut", reason = "Iterating a HashMap on a simulator-stateful path breaks Q6' = R2 deterministic replay; use BTreeMap." },
+    { path = "std::collections::HashMap::keys", reason = "Iterating a HashMap's keys breaks Q6' = R2; use BTreeMap." },
+    { path = "std::collections::HashMap::values", reason = "Iterating a HashMap's values breaks Q6' = R2; use BTreeMap." },
+    { path = "std::collections::HashMap::values_mut", reason = "Iterating a HashMap's values_mut breaks Q6' = R2; use BTreeMap." },
+    { path = "std::collections::HashMap::into_iter", reason = "Iterating a HashMap by value breaks Q6' = R2; use BTreeMap." },
+    { path = "std::collections::HashMap::into_keys", reason = "Iterating a HashMap's keys breaks Q6' = R2; use BTreeMap." },
+    { path = "std::collections::HashMap::into_values", reason = "Iterating a HashMap's values breaks Q6' = R2; use BTreeMap." },
+    { path = "std::collections::HashMap::drain", reason = "Draining a HashMap iterates in non-deterministic order; use BTreeMap." },
+]
