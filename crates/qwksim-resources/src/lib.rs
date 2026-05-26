@@ -18,12 +18,14 @@ pub mod bandwidth;
 pub mod gpu;
 pub mod hpc;
 pub mod network;
+pub mod portal;
 pub mod scratch;
 
 pub use bandwidth::{Bandwidth, MemoryBandwidthPool, StreamId};
 pub use gpu::GpuPoolAgent;
 pub use hpc::HpcPartitionAgent;
 pub use network::{ActiveStream, FluidBandwidthPool, FluidPoolSummary};
+pub use portal::{AdmissionOutcome, AdmissionRequest, PortalAgent, PriorityClass};
 pub use scratch::ScratchIoPool;
 
 use qwksim_core::event::{AgentId, SimTime};
@@ -39,6 +41,8 @@ use qwksim_scheduler::View;
 ///
 /// - [`HpcPartitionAgent`] populates `free_cores` / `total_cores`.
 /// - [`GpuPoolAgent`] populates `free_gpus` / `total_gpus`.
+/// - [`PortalAgent`] populates `portal_queue_depth` and
+///   `portal_high_priority_pending`.
 ///
 /// Memory bandwidth, scratch I/O, fidelity-class queue depth, etc.
 /// land alongside their owning resource agents in later Phase-2
@@ -55,6 +59,12 @@ pub struct AdvertisedSummary {
     /// Configured total GPUs at this agent (`0` if not a GPU
     /// pool).
     pub total_gpus: u32,
+    /// Number of workflows currently in the portal's admission
+    /// queue (`0` if not a portal agent).
+    pub portal_queue_depth: u32,
+    /// Number of `High`-priority workflows currently waiting at
+    /// the portal (`0` if not a portal agent).
+    pub portal_high_priority_pending: u32,
 }
 
 /// One reservation handed to (or held by) a resource agent.
