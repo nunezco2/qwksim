@@ -1,0 +1,53 @@
+# qwksim headline experiment manifest (skeleton).
+#
+# The experiment harness in `qwksim-experiment` will read this file
+# (Q15.1 = em2 hierarchical TOML manifests). The concrete schema
+# lands in T6.x; today this file exists primarily to record the
+# FLAG-N perf-gate decision in source-controlled form.
+#
+# ─── FLAG-N decision (locked at end of Phase 1) ──────────────────
+#
+# Status:   CLOSED — go aspirational
+# Chosen:   16 000-run Cartesian grid
+#   4 load levels × 4 τ_adv values × 5 mechanisms × 2 info regimes
+#   × 100 replicates  =  16 000 runs
+#
+# Fallback (rejected today; retain as a comment so future
+# regressions can revive it without re-deriving the trade-off):
+#   3 × 3 × 5 × 2 × 100 = 9 000 runs.
+#
+# Rationale: see plan/decisions/flag-n.md.
+# Measured at M1 (T1.13, M-series workstation, release build):
+#   b5 end-to-end smoke / 1 000 arrivals  median 0.50 ms
+#                                          (target ≤ 60 s/run;
+#                                           ~120 000× headroom)
+# ────────────────────────────────────────────────────────────────
+
+[experiment]
+name = "headline"
+description = """
+qwksim headline 2×2 factorial: distributed cooperative bargainer
+vs. centralised cooperative bargainer (+ HEFT, EASY-backfilling,
+FCFS context baselines) across the load × τ_adv grid.
+"""
+
+[experiment.grid]
+# Q11.5 sw1 — load level (multiplier on nominal arrival rate).
+load = [0.5, 1.0, 1.5, 2.0]
+# Q11.5 sw2 — advertisement broadcast cadence, simulator seconds.
+tau_adv_s = [1, 10, 30, 60]
+# Q5 baseline set + the distributed cooperative bargainer.
+mechanism = [
+    "distributed_cooperative_bargainer",
+    "centralised_cooperative_bargainer",
+    "heft",
+    "easy_backfill",
+    "fcfs",
+]
+# Q5.2 = Z: every mechanism runs under both information regimes.
+info_regime = ["oracular", "local_advertised"]
+# Q1.4 decision rule: 100 replicates per (mechanism × info_regime
+# × scenario) cell.
+replicates = 100
+
+# Total: 4 × 4 × 5 × 2 × 100 = 16 000 runs.
