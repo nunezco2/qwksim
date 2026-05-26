@@ -14,8 +14,10 @@
 //! per-modality envelopes in §2.3 for how this composes with the
 //! `qwksim-qpu` crate.
 
+pub mod gpu;
 pub mod hpc;
 
+pub use gpu::GpuPoolAgent;
 pub use hpc::HpcPartitionAgent;
 
 use qwksim_core::event::{AgentId, SimTime};
@@ -26,25 +28,46 @@ use qwksim_scheduler::View;
 /// `AdvertisedState` consumed by [`qwksim_scheduler::Scheduler`] in
 /// the `Local` view variant.
 ///
-/// `free_cores`/`total_cores` are the only fields today; bandwidth,
-/// scratch, fidelity-class queue depth, etc. land alongside the
-/// resource types that own them in later phases.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+/// Each per-resource agent populates only the fields it owns and
+/// leaves the rest at zero (the `Default` value). Today:
+///
+/// - [`HpcPartitionAgent`] populates `free_cores` / `total_cores`.
+/// - [`GpuPoolAgent`] populates `free_gpus` / `total_gpus`.
+///
+/// Memory bandwidth, scratch I/O, fidelity-class queue depth, etc.
+/// land alongside their owning resource agents in later Phase-2
+/// PRs and Phase-3 (QPU).
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct AdvertisedSummary {
-    /// Cores currently unallocated.
+    /// CPU cores currently unallocated.
     pub free_cores: u32,
-    /// Configured total cores for this resource.
+    /// Configured total CPU cores at this agent (`0` if not an
+    /// HPC partition).
     pub total_cores: u32,
+    /// GPUs currently unallocated.
+    pub free_gpus: u32,
+    /// Configured total GPUs at this agent (`0` if not a GPU
+    /// pool).
+    pub total_gpus: u32,
 }
 
 /// One reservation handed to (or held by) a resource agent.
 ///
+/// Aggregate request shape — each per-resource agent reads only
+/// the fields it manages, so a workflow that needs *N* cores and
+/// *M* GPUs can describe the request once and dispatch the same
+/// `Allocation` to both the HPC partition and the GPU pool
+/// agents. Zero on a field means "this agent has nothing to do".
+///
 /// Marker fields today; full bargaining-bundle reservation shape
+/// (memory bandwidth, scratch, QPU shots, fidelity class, …)
 /// lands in T4.x.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Allocation {
     /// CPU cores requested.
     pub cores: u32,
+    /// GPUs requested.
+    pub gpus: u32,
 }
 
 /// Common interface every per-resource agent implements.
