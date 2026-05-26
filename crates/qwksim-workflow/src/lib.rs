@@ -17,7 +17,9 @@
 //! specification.
 
 pub mod dag;
+pub mod iter;
 pub mod task;
 
 pub use dag::{Dag, DagEdge, DagError, TaskId};
+pub use iter::{run_iteration, run_until_termination, IterOutcome, IterState, IterativeRunSpec};
 pub use task::{QpuModality, QuantumDescriptor, Task, TaskKind};

@@ -1229,7 +1229,10 @@ dependencies = [
 name = "qwksim-workflow"
 version = "0.1.0"
 dependencies = [
+ "proptest",
  "qwksim-core",
+ "rand_chacha",
+ "rand_core",
  "thiserror",
 ]
 

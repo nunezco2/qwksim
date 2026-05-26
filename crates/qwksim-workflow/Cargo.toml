@@ -13,6 +13,15 @@ repository.workspace = true
 qwksim-core = { path = "../qwksim-core", version = "0.1.0" }
 # Concrete error enum for the Dag validator's public surface.
 thiserror = "2"
+# T2.8 iterative-loop runtime samples a noisy convergence
+# objective from a per-(workflow, iter) ChaCha20 stream.
+rand_chacha = "0.9"
+rand_core = "0.9"
+
+[dev-dependencies]
+# T2.8 proptest gate: convergence terminates within max_iters
+# for any seed.
+proptest = "1"
 
 [lints]
 workspace = true
