@@ -19,3 +19,4 @@
 
 pub mod mm1;
 pub mod smoke;
+pub mod vqe_smoke;

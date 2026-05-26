@@ -1197,6 +1197,7 @@ dependencies = [
  "qwksim-baselines",
  "qwksim-core",
  "qwksim-resources",
+ "qwksim-workflow",
  "rand_chacha",
  "rand_core",
 ]
