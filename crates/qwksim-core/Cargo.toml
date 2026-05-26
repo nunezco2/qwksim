@@ -40,11 +40,11 @@ sha2 = "0.10"
 tokio = { version = "1", features = ["rt"], default-features = false }
 
 [dev-dependencies]
-# Criterion harness for the three b-series benchmarks owned by
-# qwksim-core (b1 event-queue, b4 parquet-write, b5 end-to-end).
-# Real bodies land alongside the corresponding implementations in
-# later phases (T1.x, T6.x); today these are no-op stubs that
-# `cargo bench --no-run` must still build.
+# Criterion harness for the b-series benchmarks owned by
+# qwksim-core: b1 event-queue (real, T1.12) and b4 parquet-write
+# (stub today; real body lands later in Phase 1/Phase 6). The b5
+# end-to-end benchmark moved to qwksim-experiment in T1.13 since
+# that's where the smoke runner it drives lives.
 criterion = "0.5"
 
 [[bench]]
@@ -53,10 +53,6 @@ harness = false
 
 [[bench]]
 name = "parquet_write"
-harness = false
-
-[[bench]]
-name = "end_to_end"
 harness = false
 
 [lints]
