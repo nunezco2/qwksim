@@ -17,10 +17,12 @@
 pub mod bandwidth;
 pub mod gpu;
 pub mod hpc;
+pub mod network;
 
 pub use bandwidth::{Bandwidth, MemoryBandwidthPool, StreamId};
 pub use gpu::GpuPoolAgent;
 pub use hpc::HpcPartitionAgent;
+pub use network::{ActiveStream, FluidBandwidthPool, FluidPoolSummary};
 
 use qwksim_core::event::{AgentId, SimTime};
 use qwksim_scheduler::View;
