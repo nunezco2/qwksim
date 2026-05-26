@@ -17,4 +17,5 @@
 //!
 //! See `plan/solution_plan.md` §2.8.
 
+pub mod mm1;
 pub mod smoke;
