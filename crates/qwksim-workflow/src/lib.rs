@@ -19,7 +19,11 @@
 pub mod dag;
 pub mod iter;
 pub mod task;
+pub mod vqe;
+pub mod workflow;
 
 pub use dag::{Dag, DagEdge, DagError, TaskId};
 pub use iter::{run_iteration, run_until_termination, IterOutcome, IterState, IterativeRunSpec};
 pub use task::{QpuModality, QuantumDescriptor, Task, TaskKind};
+pub use vqe::VqeConfig;
+pub use workflow::{Category, Workflow};
