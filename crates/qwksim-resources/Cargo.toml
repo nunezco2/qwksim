@@ -17,5 +17,10 @@ qwksim-core = { path = "../qwksim-core", version = "0.1.0" }
 # abstraction defined in T1.5.
 qwksim-scheduler = { path = "../qwksim-scheduler", version = "0.1.0" }
 
+[dev-dependencies]
+# T2.3 — proptest gate on the FluidBandwidthPool invariant
+# "advertised free capacity ≤ true free capacity within τ_adv".
+proptest = "1"
+
 [lints]
 workspace = true
