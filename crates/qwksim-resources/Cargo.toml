@@ -16,3 +16,6 @@ qwksim-core = { path = "../qwksim-core", version = "0.1.0" }
 # (§4.1); per-resource agents are consumers of the dual-view
 # abstraction defined in T1.5.
 qwksim-scheduler = { path = "../qwksim-scheduler", version = "0.1.0" }
+
+[lints]
+workspace = true

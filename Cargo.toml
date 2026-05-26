@@ -20,3 +20,10 @@ rust-version = "1.85"
 authors = ["qwksim contributors"]
 license = "Apache-2.0"
 repository = "https://github.com/nunezco2/qwksim"
+
+# Workspace-level clippy lints. `disallowed_methods` is the lint
+# that enforces the policy spelled out in `clippy.toml`: no
+# HashMap iteration on simulator-stateful paths (Q6' = R2). Member
+# crates inherit via `[lints] workspace = true`.
+[workspace.lints.clippy]
+disallowed_methods = "deny"

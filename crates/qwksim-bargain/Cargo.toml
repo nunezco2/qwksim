@@ -22,3 +22,6 @@ harness = false
 [[bench]]
 name = "advert_aggregation"
 harness = false
+
+[lints]
+workspace = true

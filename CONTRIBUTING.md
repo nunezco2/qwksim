@@ -132,7 +132,25 @@ Below is the DCO 1.1 verbatim. Sign-off constitutes agreement.
   issue's `Suggested PR title` field.
 - **Determinism:** new code that touches simulator state must respect
   the per-replicate deterministic-replay guarantee. See
-  `plan/solution_plan.md` §3.
+  `plan/solution_plan.md` §3. Concretely:
+  - **No `HashMap` iteration on simulator-stateful paths.** Clippy
+    is configured (via the workspace `[workspace.lints.clippy]`
+    table + `clippy.toml`) to **deny** the `disallowed_methods`
+    lint for `HashMap::iter`/`iter_mut`/`keys`/`values`/`values_mut`/
+    `into_iter`/`into_keys`/`into_values`/`drain`. Use
+    `BTreeMap` (key-ordered) on stateful paths; `HashMap` is fine
+    for **point-lookup-only** state. The
+    `crates/qwksim-experiment/tests/determinism_replay.rs` test
+    is the runtime gate that catches any remaining
+    non-determinism by byte-comparing three consecutive
+    smoke-run Parquet outputs.
+  - **Documented exceptions.** A handful of `HashMap` iterations
+    will be unavoidable later (e.g. the `CompilationCache` in
+    `qwksim-qpu` planned for T3.x, which uses `HashMap` for pure
+    point-lookup with no iteration on the simulator-state path).
+    These opt out per call site with
+    `#[allow(clippy::disallowed_methods)] // <reason>` plus a
+    one-line comment that names the exception in the docstring.
 
 [cc]: https://www.conventionalcommits.org/en/v1.0.0/
 

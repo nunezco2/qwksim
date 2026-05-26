@@ -16,3 +16,6 @@ path = "src/main.rs"
 # Q14.4 = a2: install mimalloc as the global allocator for the
 # qwksim binary only. Library crates remain allocator-agnostic.
 mimalloc = { version = "0.1", default-features = false }
+
+[lints]
+workspace = true
