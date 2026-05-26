@@ -1124,6 +1124,7 @@ name = "qwksim-experiment"
 version = "0.1.0"
 dependencies = [
  "arrow",
+ "criterion",
  "parquet",
  "qwksim-baselines",
  "qwksim-core",

@@ -23,6 +23,13 @@ rand_core = "0.9"
 # verify schema, record count, and provenance metadata.
 arrow = "58"
 parquet = "58"
+# b5 end-to-end criterion benchmark — moved from qwksim-core in
+# T1.13 so it lives alongside the smoke runner it drives.
+criterion = "0.5"
+
+[[bench]]
+name = "end_to_end"
+harness = false
 
 [lints]
 workspace = true
