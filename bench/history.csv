@@ -1,0 +1,3 @@
+ts,bench_id,median_ns,mean_ns,low_ns,high_ns,throughput_elem_per_s,sample_size,host,commit_short,notes
+2026-05-22,b1::event_queue::push_then_pop/1m,65573000,65573000,65227000,65926000,15250000,100,m-series-darwin-debug-host,baseline,T1.12 baseline run on author workstation
+2026-05-22,b1::event_queue::steady_state/1m_mix,70613000,70613000,70161000,71181000,14162000,100,m-series-darwin-debug-host,baseline,T1.12 baseline run on author workstation
