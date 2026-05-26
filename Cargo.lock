@@ -1216,6 +1216,8 @@ dependencies = [
  "proptest",
  "qwksim-core",
  "qwksim-scheduler",
+ "rand_chacha",
+ "rand_core",
 ]
 
 [[package]]
