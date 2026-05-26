@@ -14,6 +14,7 @@
 //! per-modality envelopes in §2.3 for how this composes with the
 //! `qwksim-qpu` crate.
 
+pub mod advertisement;
 pub mod bandwidth;
 pub mod contention;
 pub mod gpu;
@@ -22,6 +23,9 @@ pub mod network;
 pub mod portal;
 pub mod scratch;
 
+pub use advertisement::{
+    schedule_broadcasts, AdvertisementBroadcast, AdvertisementChannel, LinkLatencyParams,
+};
 pub use bandwidth::{Bandwidth, MemoryBandwidthPool, StreamId};
 pub use contention::ResourceContentionView;
 pub use gpu::GpuPoolAgent;
