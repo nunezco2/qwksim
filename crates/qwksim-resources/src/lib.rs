@@ -14,9 +14,11 @@
 //! per-modality envelopes in §2.3 for how this composes with the
 //! `qwksim-qpu` crate.
 
+pub mod bandwidth;
 pub mod gpu;
 pub mod hpc;
 
+pub use bandwidth::{Bandwidth, MemoryBandwidthPool, StreamId};
 pub use gpu::GpuPoolAgent;
 pub use hpc::HpcPartitionAgent;
 
