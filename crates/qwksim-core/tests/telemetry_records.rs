@@ -214,14 +214,20 @@ fn writes_100_iteration_events_with_correct_schema_and_order() {
 }
 
 fn tempdir() -> std::path::PathBuf {
+    // `SystemTime::now().as_nanos()` is microsecond-resolution on
+    // macOS, so back-to-back parallel calls inside one test
+    // process can collide. An atomic counter guarantees
+    // disambiguation within a single binary.
+    static COUNTER: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
     let mut dir = std::path::PathBuf::from(env!("CARGO_TARGET_TMPDIR"));
     dir.push(format!(
-        "t1_4_records_{pid}_{nanos}",
+        "t1_4_records_{pid}_{nanos}_{n}",
         pid = std::process::id(),
         nanos = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .map(|d| d.as_nanos())
-            .unwrap_or(0)
+            .unwrap_or(0),
+        n = COUNTER.fetch_add(1, std::sync::atomic::Ordering::Relaxed),
     ));
     std::fs::create_dir_all(&dir).expect("create test tempdir");
     dir
