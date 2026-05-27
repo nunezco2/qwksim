@@ -1209,6 +1209,8 @@ dependencies = [
  "qwksim-core",
  "qwksim-resources",
  "qwksim-scheduler",
+ "rand_chacha",
+ "rand_core",
  "serde",
  "sha2",
  "toml",

@@ -19,6 +19,10 @@ qwksim-scheduler = { path = "../qwksim-scheduler", version = "0.1.0" }
 # Runtime TOML deserialisation of QpuAnchor configs.
 serde = { version = "1", features = ["derive"] }
 toml = { version = "0.8", default-features = false, features = ["parse"] }
+# T3.3 OU drift integrator uses the workspace ChaCha20 stream
+# (one rng per `Stream::CalibrationDrift` channel).
+rand_chacha = "0.9"
+rand_core = "0.9"
 
 [build-dependencies]
 sha2 = "0.10"
