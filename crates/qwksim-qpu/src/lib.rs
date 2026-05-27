@@ -22,6 +22,8 @@
 //! `vendor.toml` for the manifest and Q17.2 = (vc3) for the licence
 //! status.
 
+pub mod agent;
 pub mod anchor;
 
+pub use agent::{CircuitExec, FidelityClass, QpuAgent};
 pub use anchor::{projected_hand_over_latency_ns, IntegrationTightness, Modality, QpuAnchor};
