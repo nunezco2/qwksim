@@ -41,6 +41,8 @@ use qwksim_core::event::{AgentId, SimTime};
 use qwksim_resources::{AdvertisedSummary, Allocation, ResourceAgent};
 use qwksim_scheduler::View;
 
+use crate::calibration::{AdmissionRejected, CalibrationSchedule};
+use crate::drift::OuDriftState;
 use crate::{IntegrationTightness, QpuAnchor};
 
 /// Required circuit fidelity tier. The queue pops `High` before
@@ -128,6 +130,15 @@ pub struct QpuAgent {
     /// the second coordinate of the queue key is a strict
     /// FIFO-within-class tie-break.
     next_seq: u64,
+    /// OU calibration drift integrator (T3.3). Optional so
+    /// T3.2-era constructors continue to work; T3.4 attaches one
+    /// via [`QpuAgent::with_calibration`].
+    drift: Option<OuDriftState>,
+    /// Calibration cycle + outage timing (T3.4). When `Some`,
+    /// [`Self::admit_circuit`] rejects requests inside an outage
+    /// window and applies the boundary-reset to `drift` lazily
+    /// on each admission.
+    calibration: Option<CalibrationSchedule>,
 }
 
 impl QpuAgent {
@@ -140,7 +151,69 @@ impl QpuAgent {
             tightness,
             queue: BTreeMap::new(),
             next_seq: 0,
+            drift: None,
+            calibration: None,
         }
+    }
+
+    /// Attach an OU drift integrator + calibration schedule.
+    /// Once attached, [`Self::admit_circuit`] enforces outage
+    /// admission and applies abrupt boundary resets to `drift`
+    /// on every cycle (T3.4).
+    pub fn with_calibration(mut self, drift: OuDriftState, schedule: CalibrationSchedule) -> Self {
+        self.drift = Some(drift);
+        self.calibration = Some(schedule);
+        self
+    }
+
+    /// Read-only access to the OU drift integrator. `None` if
+    /// none was attached.
+    pub fn drift(&self) -> Option<&OuDriftState> {
+        self.drift.as_ref()
+    }
+
+    /// Mutable access to the OU drift integrator (e.g. for
+    /// stepping it forward in tests / per-iteration code).
+    pub fn drift_mut(&mut self) -> Option<&mut OuDriftState> {
+        self.drift.as_mut()
+    }
+
+    /// The attached calibration schedule, if any.
+    pub fn calibration_schedule(&self) -> Option<CalibrationSchedule> {
+        self.calibration
+    }
+
+    /// Outage-aware admission. If a [`CalibrationSchedule`] is
+    /// attached:
+    ///
+    /// - During an outage window the request is rejected with
+    ///   [`AdmissionRejected::InOutage`]. The caller resubmits
+    ///   once `t_ns >= until`.
+    /// - Otherwise the drift integrator is brought up to date
+    ///   with any boundary resets that have elapsed since the
+    ///   last admission, and the circuit is enqueued.
+    ///
+    /// If no schedule is attached the admission always succeeds
+    /// (matches the T3.2 baseline).
+    pub fn admit_circuit(
+        &mut self,
+        exec: CircuitExec,
+        now: SimTime,
+    ) -> Result<u64, AdmissionRejected> {
+        if let Some(schedule) = self.calibration {
+            if schedule.is_in_outage(now) {
+                return Err(AdmissionRejected::InOutage {
+                    until: schedule.next_reset_after(now),
+                });
+            }
+            if let Some(drift) = self.drift.as_mut() {
+                let most_recent = schedule.most_recent_reset_at(now);
+                if drift.last_reset_at_ns() < most_recent {
+                    drift.reset_to_nominal_at(most_recent);
+                }
+            }
+        }
+        Ok(self.enqueue_circuit(exec))
     }
 
     /// Calibration anchor this agent was constructed with. Today

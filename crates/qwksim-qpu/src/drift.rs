@@ -176,6 +176,20 @@ impl OuChannelState {
         self.x += dx;
         self.last_t_ns = self.last_t_ns.saturating_add(step_dt_ns);
     }
+
+    /// Reset this channel's realised value back to the long-term
+    /// mean `μ`, anchoring `last_t_ns` at `t_ns`. Models the
+    /// abrupt "fresh calibration" event at each calibration
+    /// boundary (T3.4).
+    ///
+    /// The channel's rng is **not** rewound: subsequent steps
+    /// continue to consume the stream deterministically so a
+    /// post-reset trace replayed under CRN is bit-identical to
+    /// the original.
+    pub fn reset_to_mu_at(&mut self, t_ns: SimTime) {
+        self.x = self.params.mu;
+        self.last_t_ns = t_ns;
+    }
 }
 
 /// All fidelity channels of one QPU, sharing the same step size
@@ -187,6 +201,10 @@ impl OuChannelState {
 pub struct OuDriftState {
     channels: BTreeMap<FidelityChannel, OuChannelState>,
     step_dt_ns: u64,
+    /// Simulator time of the most recent calibration boundary
+    /// reset that this drift state has acknowledged. `0` at
+    /// construction (the QPU comes online freshly calibrated).
+    last_reset_at_ns: SimTime,
 }
 
 impl OuDriftState {
@@ -220,6 +238,7 @@ impl OuDriftState {
         Self {
             channels: map,
             step_dt_ns,
+            last_reset_at_ns: t0_ns,
         }
     }
 
@@ -231,6 +250,22 @@ impl OuDriftState {
     /// Read-only access to channel state (useful for tests).
     pub fn channel(&self, channel: FidelityChannel) -> Option<&OuChannelState> {
         self.channels.get(&channel)
+    }
+
+    /// Simulator time of the most recent calibration-boundary
+    /// reset applied to this drift state.
+    pub fn last_reset_at_ns(&self) -> SimTime {
+        self.last_reset_at_ns
+    }
+
+    /// Reset every channel to its long-term mean `μ`, stamping
+    /// `t_ns` as the new boundary. Used by the QpuAgent to apply
+    /// a calibration boundary reset (T3.4).
+    pub fn reset_to_nominal_at(&mut self, t_ns: SimTime) {
+        for st in self.channels.values_mut() {
+            st.reset_to_mu_at(t_ns);
+        }
+        self.last_reset_at_ns = t_ns;
     }
 
     /// Step-on-demand. Returns the realised fidelity for
