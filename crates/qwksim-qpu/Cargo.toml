@@ -23,6 +23,9 @@ toml = { version = "0.8", default-features = false, features = ["parse"] }
 # (one rng per `Stream::CalibrationDrift` channel).
 rand_chacha = "0.9"
 rand_core = "0.9"
+# T3.8 vendor-calibration adapter parses the JSON sheets the
+# build script materialises in $OUT_DIR.
+serde_json = "1"
 
 [build-dependencies]
 sha2 = "0.10"
