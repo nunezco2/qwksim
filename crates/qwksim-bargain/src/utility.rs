@@ -36,10 +36,21 @@
 //! ## Trait
 //!
 //! [`UtilityFn::evaluate`] is the per-agent surface the
-//! best-response loop will consume. The trait reserves a
-//! `disagreement(terms_under_fcfs)` method as a `default fn`
-//! today (returns zero) so T4.3 can fill it in without
-//! breaking the v1 trait.
+//! best-response loop consumes. [`UtilityFn::disagreement`]
+//! returns the FCFS-on-stale baseline payoff (FLAG-B closed,
+//! T4.3) — the *same* utility function evaluated against the
+//! [`UtilityTerms`] the workflow would have realised under a
+//! simple FIFO admission projected against the same advertised
+//! state the bargaining agents see. The default implementation
+//! therefore simply delegates back to [`UtilityFn::evaluate`],
+//! capturing the FLAG-B contract: the disagreement and the
+//! bargained outcome share an information regime and share an
+//! evaluation function — only the *terms* differ.
+//!
+//! Concretely the FCFS-on-stale projection lives upstream in
+//! the experiment runner (T4.4+); this module is the
+//! evaluation half. See [`plan/decisions/flag-b.md`] for the
+//! design rationale.
 
 use serde::Deserialize;
 
@@ -179,19 +190,29 @@ pub fn evaluate_utility(weights: &CategoryWeights, terms: &UtilityTerms) -> f64 
 /// degradation models) drop in without changing the solver.
 ///
 /// `disagreement` carries the FCFS-on-stale baseline payoff
-/// — the T4.3 FLAG-B closed form fills it in. T4.2 ships a
-/// `0.0` default so the trait is usable from downstream
-/// scaffolding today.
+/// (FLAG-B, T4.3). The default implementation delegates back
+/// to [`Self::evaluate`] — the FLAG-B contract is that the
+/// disagreement and the bargained outcome share an
+/// information regime and share an evaluation function; only
+/// the [`UtilityTerms`] differ. The upstream runner (T4.4+)
+/// projects the FCFS-on-stale [`UtilityTerms`] and feeds them
+/// in.
 pub trait UtilityFn {
     /// Evaluate the utility at the given pre-computed
     /// [`UtilityTerms`]. Required.
     fn evaluate(&self, terms: &UtilityTerms) -> f64;
 
-    /// Disagreement-point payoff (FLAG-B; T4.3). Default is
-    /// `0.0` so the trait is callable from T4.2-era code
-    /// without a working FCFS-on-stale projection.
-    fn disagreement(&self, _terms_under_fcfs: &UtilityTerms) -> f64 {
-        0.0
+    /// Disagreement-point payoff under FCFS-on-stale (FLAG-B
+    /// closed; see `plan/decisions/flag-b.md`).
+    ///
+    /// `terms_under_fcfs` is the [`UtilityTerms`] the workflow
+    /// would have realised under a simple FIFO admission
+    /// against the same advertised state. Default delegates
+    /// back to [`Self::evaluate`] — the disagreement and the
+    /// bargained outcome share an evaluation function, only
+    /// the inputs differ.
+    fn disagreement(&self, terms_under_fcfs: &UtilityTerms) -> f64 {
+        self.evaluate(terms_under_fcfs)
     }
 }
 
@@ -394,11 +415,95 @@ mod tests {
     }
 
     #[test]
-    fn utility_fn_default_disagreement_returns_zero_until_t4_3_lands() {
-        // T4.2 ships disagreement as the default `0.0` stub —
-        // T4.3 will replace it with the FCFS-on-stale projection.
+    fn utility_fn_disagreement_delegates_to_evaluate_on_the_fcfs_terms() {
+        // FLAG-B closed: the disagreement-point uses the *same*
+        // utility function, just on the FCFS-on-stale terms.
+        // For any input `terms`, `disagreement(terms)` must
+        // equal `evaluate(terms)` exactly.
         let w = weights(0.3, 0.5, 0.15, 0.05);
-        let t = terms(0.5, 0.5, 0.5, 0.5);
-        assert_eq!(w.disagreement(&t), 0.0);
+        for fixture in [
+            terms(0.5, 0.5, 0.5, 0.5),
+            terms(0.0, 0.0, 0.0, 0.0),
+            terms(1.0, 1.0, 1.0, 0.0),
+            terms(0.1, 0.9, 0.2, 5.0),
+        ] {
+            let via_disagreement = w.disagreement(&fixture);
+            let via_evaluate = w.evaluate(&fixture);
+            assert!(
+                (via_disagreement - via_evaluate).abs() < 1e-15,
+                "FLAG-B: disagreement({fixture:?}) {via_disagreement} != evaluate(...) {via_evaluate}",
+            );
+        }
+    }
+
+    /// T4.3 acceptance gate (the degenerate single-resource
+    /// case from #49): on a scenario where the bargaining
+    /// outcome and the FCFS-on-stale projection produce the
+    /// **same** [`UtilityTerms`] — the only feasible allocation
+    /// for a single resource and a single workflow — the
+    /// bargained utility equals the disagreement utility, so
+    /// the dominance inequality `bargained ≥ disagreement`
+    /// holds with equality (no Pareto-improving move available;
+    /// the bargain is the FCFS allocation).
+    #[test]
+    fn bargained_utility_dominates_disagreement_on_degenerate_single_resource_case() {
+        let w = CategoryWeights::default_for(Category::Vqe);
+        // Single-resource single-workflow: only one feasible
+        // allocation. Both projections converge to the same
+        // UtilityTerms.
+        let only_feasible = terms(0.6, 0.85, 0.7, 0.2);
+        let bargained = w.evaluate(&only_feasible);
+        let disagreement = w.disagreement(&only_feasible);
+        assert!(
+            bargained >= disagreement,
+            "FLAG-B disagreement-dominance violated on degenerate case: \
+             bargained {bargained} < disagreement {disagreement}",
+        );
+        assert!(
+            (bargained - disagreement).abs() < 1e-15,
+            "degenerate case must satisfy equality, not strict inequality: \
+             bargained {bargained} != disagreement {disagreement}",
+        );
+    }
+
+    #[test]
+    fn bargained_terms_pareto_dominating_fcfs_terms_yields_strict_advantage() {
+        // Multi-resource case: when the bargaining outcome
+        // delivers a Pareto-better term vector than the
+        // FCFS-on-stale projection (every positive axis ≥, at
+        // least one strictly >, and degradation ≤), the
+        // bargained utility must strictly exceed the
+        // disagreement utility.
+        let w = weights(0.3, 0.5, 0.15, 0.05);
+        let fcfs = terms(0.5, 0.7, 0.6, 0.3);
+        let bargained = terms(
+            /* deadline_term */ 0.8, // ↑ (more slack)
+            /* fidelity_term */ 0.85, // ↑ (better channel)
+            /* rivalry_term  */ 0.75, // ↑ (less rivalry)
+            /* degradation   */ 0.2, // ↓ (less penalty)
+        );
+        let u_bargain = w.evaluate(&bargained);
+        let u_disagree = w.disagreement(&fcfs);
+        assert!(
+            u_bargain > u_disagree,
+            "bargained {u_bargain} ≯ disagreement {u_disagree} despite Pareto-dominance",
+        );
+    }
+
+    #[test]
+    fn disagreement_is_anti_monotone_in_degradation_term_just_like_evaluate() {
+        // Because `disagreement` shares its formula with
+        // `evaluate`, every monotonicity property carries over.
+        // Pin the degradation axis as the canary so a future
+        // refactor that diverges the two formulas trips.
+        let w = weights(0.3, 0.5, 0.15, 0.05);
+        let base = terms(0.5, 0.5, 0.5, 0.0);
+        let bumped = terms(0.5, 0.5, 0.5, 1.0);
+        let d_base = w.disagreement(&base);
+        let d_bumped = w.disagreement(&bumped);
+        assert!(
+            d_bumped < d_base,
+            "δ anti-monotonicity does not carry into disagreement: {d_bumped} ≥ {d_base}",
+        );
     }
 }
