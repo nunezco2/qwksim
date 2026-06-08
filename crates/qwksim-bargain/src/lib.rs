@@ -15,3 +15,7 @@
 //!
 //! See `plan/solution_plan.md` §2.5 and §6 for the solver
 //! architecture and proptest invariants.
+
+pub mod nash;
+
+pub use nash::nash_product;
