@@ -17,7 +17,9 @@
 //! architecture and proptest invariants.
 
 pub mod nash;
+pub mod round;
 pub mod utility;
 
 pub use nash::nash_product;
+pub use round::{AgentBid, BargainingAgent, BargainingOutcome, BargainingRound};
 pub use utility::{evaluate_utility, Category, CategoryWeights, UtilityFn, UtilityTerms};
