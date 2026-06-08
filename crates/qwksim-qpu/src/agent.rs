@@ -64,12 +64,13 @@ pub enum FidelityClass {
     High,
 }
 
-/// One circuit waiting (or executing) on a [`QpuAgent`]. Today
-/// the descriptor is minimal: a stable submission id and the
-/// requested fidelity class. Richer per-circuit fields (qubit
-/// count, two-qubit gate count, shot count, deadline,
-/// `mid_circuit_feedback`) land alongside the OU integrator and
-/// compilation cache in T3.3+.
+/// One circuit waiting (or executing) on a [`QpuAgent`].
+/// Carries the stable submission id, the required fidelity
+/// tier, and the [`mid_circuit_feedback`](Self::mid_circuit_feedback)
+/// flag that toggles the per-modality feedback-latency constant
+/// from T3.6. Richer per-circuit fields (qubit count, two-qubit
+/// gate count, shot count, deadline) land alongside the
+/// Phase-4 bargaining wiring.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct CircuitExec {
     /// Caller-stable circuit identifier (e.g. workflow id × task
@@ -77,15 +78,32 @@ pub struct CircuitExec {
     pub circuit_id: u64,
     /// Required fidelity tier.
     pub fidelity_class: FidelityClass,
+    /// `true` iff the circuit uses mid-circuit measurement +
+    /// classical-feedback conditional gates. When set,
+    /// [`QpuAgent::circuit_exec_time_ns`] adds the per-modality
+    /// feedback-latency constant from
+    /// [`Modality::mid_circuit_feedback_latency_ns`](crate::Modality::mid_circuit_feedback_latency_ns)
+    /// to the circuit's base execution time.
+    pub mid_circuit_feedback: bool,
 }
 
 impl CircuitExec {
-    /// Convenience constructor.
+    /// Convenience constructor — defaults `mid_circuit_feedback`
+    /// to `false`. Use [`Self::with_mid_circuit_feedback`] to
+    /// toggle the flag.
     pub fn new(circuit_id: u64, fidelity_class: FidelityClass) -> Self {
         Self {
             circuit_id,
             fidelity_class,
+            mid_circuit_feedback: false,
         }
+    }
+
+    /// Set the mid-circuit feedback flag. Returns `self` for
+    /// builder-style construction.
+    pub fn with_mid_circuit_feedback(mut self, on: bool) -> Self {
+        self.mid_circuit_feedback = on;
+        self
     }
 }
 
@@ -273,6 +291,27 @@ impl QpuAgent {
     /// Number of circuits currently waiting in the queue.
     pub fn pending_circuits(&self) -> usize {
         self.queue.len()
+    }
+
+    /// Resolve the total execution time of `exec` given its
+    /// `base_exec_ns` body duration (the modality-specific
+    /// gate-time × circuit-shape product). When the circuit has
+    /// `mid_circuit_feedback = true`, the per-modality feedback
+    /// latency from
+    /// [`Modality::mid_circuit_feedback_latency_ns`](crate::Modality::mid_circuit_feedback_latency_ns)
+    /// is added on top (T3.6). When `false`, the base body
+    /// duration is returned unchanged.
+    ///
+    /// Saturating-add guards against overflow when the base
+    /// duration is pathologically large; in practice headline
+    /// circuit times are nanosecond- to millisecond-scale and
+    /// cannot overflow `u64`.
+    pub fn circuit_exec_time_ns(&self, exec: &CircuitExec, base_exec_ns: SimTime) -> SimTime {
+        if exec.mid_circuit_feedback {
+            base_exec_ns.saturating_add(self.anchor.modality.mid_circuit_feedback_latency_ns())
+        } else {
+            base_exec_ns
+        }
     }
 
     /// Enqueue `exec`. Returns the strictly-monotonic submission
@@ -521,5 +560,83 @@ mod tests {
         assert_eq!(s0, 0);
         assert_eq!(s1, 1);
         assert_eq!(s2, 2);
+    }
+
+    fn anchor_with_modality(modality: Modality) -> QpuAnchor {
+        QpuAnchor {
+            modality,
+            ..sample_anchor()
+        }
+    }
+
+    #[test]
+    fn circuit_exec_defaults_mid_circuit_feedback_off() {
+        // T3.2 constructor compatibility: CircuitExec::new
+        // leaves the new T3.6 flag off by default so existing
+        // callers stay untouched.
+        let exec = CircuitExec::new(42, FidelityClass::Standard);
+        assert!(!exec.mid_circuit_feedback);
+    }
+
+    #[test]
+    fn with_mid_circuit_feedback_toggles_the_flag() {
+        let off = CircuitExec::new(1, FidelityClass::High);
+        let on = CircuitExec::new(1, FidelityClass::High).with_mid_circuit_feedback(true);
+        let off_again = on.with_mid_circuit_feedback(false);
+        assert!(!off.mid_circuit_feedback);
+        assert!(on.mid_circuit_feedback);
+        assert!(!off_again.mid_circuit_feedback);
+    }
+
+    #[test]
+    fn circuit_exec_time_ns_returns_base_when_feedback_off() {
+        let a = QpuAgent::new(0, sample_anchor(), IntegrationTightness::OnPrem);
+        let exec = CircuitExec::new(0, FidelityClass::Standard);
+        assert!(!exec.mid_circuit_feedback);
+        let base: SimTime = 12_345;
+        assert_eq!(
+            a.circuit_exec_time_ns(&exec, base),
+            base,
+            "feedback off must return base unchanged",
+        );
+    }
+
+    /// T3.6 acceptance gate: when `mid_circuit_feedback = true`,
+    /// the QPU adds *exactly* the per-modality constant from
+    /// [`Modality::mid_circuit_feedback_latency_ns`] to the
+    /// circuit's base execution time.
+    #[test]
+    fn circuit_exec_time_ns_adds_per_modality_constant_when_feedback_on() {
+        let base: SimTime = 50_000;
+        for modality in [
+            Modality::Superconducting,
+            Modality::TrappedIon,
+            Modality::Photonic,
+        ] {
+            let anchor = anchor_with_modality(modality);
+            let a = QpuAgent::new(0, anchor, IntegrationTightness::OnPrem);
+            let exec = CircuitExec::new(0, FidelityClass::Standard).with_mid_circuit_feedback(true);
+            let got = a.circuit_exec_time_ns(&exec, base);
+            let want = base + modality.mid_circuit_feedback_latency_ns();
+            assert_eq!(
+                got,
+                want,
+                "{modality:?}: total exec time {got} ≠ base {base} + feedback {}",
+                modality.mid_circuit_feedback_latency_ns(),
+            );
+        }
+    }
+
+    #[test]
+    fn circuit_exec_time_ns_is_independent_of_base_under_feedback_on() {
+        // The added constant is the same regardless of base body
+        // duration — the per-modality constant is added *on top*.
+        let anchor = anchor_with_modality(Modality::TrappedIon);
+        let a = QpuAgent::new(0, anchor, IntegrationTightness::OnPrem);
+        let exec = CircuitExec::new(0, FidelityClass::Standard).with_mid_circuit_feedback(true);
+        let constant = Modality::TrappedIon.mid_circuit_feedback_latency_ns();
+        for &base in &[0_u64, 1, 1_000, 1_000_000, 1_000_000_000] {
+            assert_eq!(a.circuit_exec_time_ns(&exec, base), base + constant);
+        }
     }
 }

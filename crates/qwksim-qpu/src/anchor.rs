@@ -46,6 +46,33 @@ pub enum Modality {
     Photonic,
 }
 
+impl Modality {
+    /// Per-modality deterministic constant added to circuit
+    /// execution time when the circuit uses **mid-circuit
+    /// feedback** (T3.6). Captures the classical-control
+    /// feedback loop the modality incurs between a mid-circuit
+    /// measurement and the conditional gate that follows.
+    ///
+    /// | modality          | feedback latency |
+    /// |-------------------|------------------|
+    /// | Superconducting   |   1 µs           |
+    /// | TrappedIon        | 100 µs           |
+    /// | Photonic          |  10 µs           |
+    ///
+    /// Values are pinned per the Q9.6 modality envelope: a fast
+    /// classical FPGA control loop on superconducting; the
+    /// slower ion measurement-plus-laser-control on trapped ion;
+    /// a conservative placeholder for the `sw5` photonic
+    /// sensitivity sweep.
+    pub fn mid_circuit_feedback_latency_ns(self) -> SimTime {
+        match self {
+            Modality::Superconducting => 1_000,
+            Modality::TrappedIon => 100_000,
+            Modality::Photonic => 10_000,
+        }
+    }
+}
+
 /// Tightness of integration between the simulator's HPC partition
 /// and the QPU. Determines hand-over latency (Q10.1 = h4 anchor).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Deserialize, Default)]
@@ -280,5 +307,22 @@ mod tests {
             calibration_outage_ns = 1
         "#;
         assert!(QpuAnchor::from_toml(bad).is_err());
+    }
+
+    #[test]
+    fn mid_circuit_feedback_latency_constants_are_pinned_per_modality() {
+        // T3.6: the per-modality classical-control feedback
+        // constants are part of the simulator's headline
+        // physics envelope (Q9.6). Pin them so a future refactor
+        // cannot silently re-key headline scenario results.
+        assert_eq!(
+            Modality::Superconducting.mid_circuit_feedback_latency_ns(),
+            1_000
+        );
+        assert_eq!(
+            Modality::TrappedIon.mid_circuit_feedback_latency_ns(),
+            100_000
+        );
+        assert_eq!(Modality::Photonic.mid_circuit_feedback_latency_ns(), 10_000);
     }
 }
