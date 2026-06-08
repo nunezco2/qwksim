@@ -24,10 +24,12 @@
 
 pub mod agent;
 pub mod anchor;
+pub mod cache;
 pub mod calibration;
 pub mod drift;
 
 pub use agent::{CircuitExec, FidelityClass, QpuAgent};
 pub use anchor::{projected_hand_over_latency_ns, IntegrationTightness, Modality, QpuAnchor};
+pub use cache::{CompilationCache, CompilationCacheKey, CompileOutcome, CompiledCircuit};
 pub use calibration::{AdmissionRejected, CalibrationEvent, CalibrationSchedule};
 pub use drift::{FidelityChannel, OuChannelState, OuDriftState, OuParams, OU_STEP_DT_NS};
