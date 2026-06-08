@@ -9,12 +9,16 @@ license.workspace = true
 repository.workspace = true
 
 [dependencies]
-# T4.4 BargainingRound keys per-agent state by AgentId.
+# T4.4 BargainingRound keys per-agent state by AgentId; T4.5
+# pulls Stream::BargainingTieBreaker via ReplicateRng.
 qwksim-core = { path = "../qwksim-core", version = "0.1.0" }
 # T4.2 CategoryWeights deserialises from per-category TOML
 # sections in the experiment manifest.
 serde = { version = "1", features = ["derive"] }
 toml = { version = "0.8", default-features = false, features = ["parse"] }
+# T4.5 tie-break rng is one ChaCha20 stream per round.
+rand_chacha = "0.9"
+rand_core = "0.9"
 
 [dev-dependencies]
 # Criterion harness for the two b-series benchmarks owned by
