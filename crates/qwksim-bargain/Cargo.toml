@@ -9,6 +9,8 @@ license.workspace = true
 repository.workspace = true
 
 [dependencies]
+# T4.4 BargainingRound keys per-agent state by AgentId.
+qwksim-core = { path = "../qwksim-core", version = "0.1.0" }
 # T4.2 CategoryWeights deserialises from per-category TOML
 # sections in the experiment manifest.
 serde = { version = "1", features = ["derive"] }
