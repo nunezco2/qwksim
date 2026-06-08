@@ -314,6 +314,87 @@ impl QpuAgent {
         }
     }
 
+    /// Placeholder utility term `∈ [0, 1]` combining the OU
+    /// drift state and a calibration-recency decay (T3.7). The
+    /// Phase-4 utility function (FLAG-C, T4.2) wires this
+    /// directly; today the bargaining solver scaffold consumes
+    /// this as the QPU's `β·realised_fidelity` contribution.
+    ///
+    /// ## Definition
+    ///
+    /// Returns `drift_term × recency_factor`, clamped to
+    /// `[0, 1]`.
+    ///
+    /// - **drift_term**: product of the per-channel OU-drift
+    ///   values relevant to the circuit, each clamped to
+    ///   `[0, 1]`. When `circuit.mid_circuit_feedback` is true,
+    ///   the readout channel is included; otherwise only the
+    ///   1q and 2q channels contribute.
+    /// - **recency_factor**: `exp(−λ · Δt_since_cal)` where
+    ///   `Δt_since_cal = t_ns − calibration_schedule.most_recent_reset_at(t_ns)`
+    ///   and `λ = ln 2 / (period / 2)` — i.e. the recency
+    ///   halves each half-period. Returns `1.0` when no
+    ///   calibration schedule is attached.
+    ///
+    /// ## Monotonicity (T3.7 acceptance gate)
+    ///
+    /// Within a single calibration cycle, with the OU noise
+    /// scale `σ = 0` so the drift component is constant, the
+    /// term is **strictly decreasing** in `t_ns` because the
+    /// recency factor is strictly decreasing. Across cycle
+    /// boundaries the recency snaps back to `1.0` and the
+    /// monotonicity restarts.
+    ///
+    /// ## Side effects
+    ///
+    /// Advances the attached [`OuDriftState`] forward to `t_ns`
+    /// (step-on-demand semantics from T3.3). Successive calls
+    /// must have non-decreasing `t_ns` or the OU integrator
+    /// panics.
+    pub fn fidelity_term_at(&mut self, circuit: &CircuitExec, t_ns: SimTime) -> f64 {
+        let recency = self.calibration_recency_at(t_ns);
+        let f_1q = self
+            .read_channel_clamped(crate::drift::FidelityChannel::OneQubit, t_ns)
+            .unwrap_or(self.anchor.fidelity_1q.clamp(0.0, 1.0));
+        let f_2q = self
+            .read_channel_clamped(crate::drift::FidelityChannel::TwoQubit, t_ns)
+            .unwrap_or(self.anchor.fidelity_2q.clamp(0.0, 1.0));
+        let drift_term = if circuit.mid_circuit_feedback {
+            let f_ro = self
+                .read_channel_clamped(crate::drift::FidelityChannel::Readout, t_ns)
+                .unwrap_or(self.anchor.fidelity_readout.clamp(0.0, 1.0));
+            f_1q * f_2q * f_ro
+        } else {
+            f_1q * f_2q
+        };
+        (drift_term * recency).clamp(0.0, 1.0)
+    }
+
+    /// Read one OU-drift channel value at `t_ns`, clamped to
+    /// `[0, 1]`. Returns `None` if no drift is attached.
+    fn read_channel_clamped(
+        &mut self,
+        channel: crate::drift::FidelityChannel,
+        t_ns: SimTime,
+    ) -> Option<f64> {
+        let drift = self.drift.as_mut()?;
+        Some(drift.current_state(channel, t_ns).clamp(0.0, 1.0))
+    }
+
+    /// Compute `exp(−λ · Δt_since_cal)` where the half-life is
+    /// half of the attached calibration period. Returns `1.0`
+    /// when no schedule is attached.
+    fn calibration_recency_at(&self, t_ns: SimTime) -> f64 {
+        let Some(schedule) = self.calibration else {
+            return 1.0;
+        };
+        let last_reset = schedule.most_recent_reset_at(t_ns);
+        let dt_since = t_ns.saturating_sub(last_reset);
+        let half_life_ns = (schedule.period_ns() / 2).max(1);
+        let lambda = std::f64::consts::LN_2 / (half_life_ns as f64);
+        (-lambda * dt_since as f64).exp()
+    }
+
     /// Enqueue `exec`. Returns the strictly-monotonic submission
     /// sequence number the queue used for FIFO-within-class
     /// tie-break.
@@ -638,5 +719,147 @@ mod tests {
         for &base in &[0_u64, 1, 1_000, 1_000_000, 1_000_000_000] {
             assert_eq!(a.circuit_exec_time_ns(&exec, base), base + constant);
         }
+    }
+
+    /// Build a QpuAgent wired with a short calibration cycle
+    /// (period 100 s, outage 10 s) and a **noiseless** OU drift
+    /// (σ = 0 on every channel) so the drift component stays
+    /// exactly at the anchor's nominal fidelity — the perfect
+    /// fixture for the T3.7 monotonicity gate, which needs the
+    /// drift term to be constant so the recency factor's
+    /// monotonicity dominates.
+    fn agent_with_short_calibration_and_zero_noise() -> QpuAgent {
+        use crate::drift::{FidelityChannel, OuDriftState, OuParams, OU_STEP_DT_NS};
+        use crate::CalibrationSchedule;
+        use qwksim_core::rng::RngHierarchy;
+
+        let mut anchor = sample_anchor();
+        // Override the calibration cadence so the test runs
+        // inside one cycle.
+        anchor.calibration_period_ns = 100 * OU_STEP_DT_NS;
+        anchor.calibration_outage_ns = 10 * OU_STEP_DT_NS;
+
+        let schedule = CalibrationSchedule::from_anchor(&anchor);
+        let replicate = RngHierarchy::new(0xBEEF_BABE).replicate(0);
+        let drift = OuDriftState::new(
+            replicate,
+            0,
+            0,
+            0,
+            OU_STEP_DT_NS,
+            &[
+                (
+                    FidelityChannel::OneQubit,
+                    OuParams::new(0.3, anchor.fidelity_1q, 0.0),
+                    anchor.fidelity_1q,
+                ),
+                (
+                    FidelityChannel::TwoQubit,
+                    OuParams::new(0.3, anchor.fidelity_2q, 0.0),
+                    anchor.fidelity_2q,
+                ),
+                (
+                    FidelityChannel::Readout,
+                    OuParams::new(0.3, anchor.fidelity_readout, 0.0),
+                    anchor.fidelity_readout,
+                ),
+            ],
+        );
+        QpuAgent::new(0, anchor, IntegrationTightness::OnPrem).with_calibration(drift, schedule)
+    }
+
+    /// T3.7 acceptance gate: with a noiseless drift, the
+    /// fidelity term is **strictly decreasing** in
+    /// time-since-calibration within a single cycle (the
+    /// recency factor decays monotonically).
+    #[test]
+    fn fidelity_term_strictly_decreases_in_time_since_calibration() {
+        use crate::OU_STEP_DT_NS;
+        let mut a = agent_with_short_calibration_and_zero_noise();
+        let circuit = CircuitExec::new(0, FidelityClass::Standard);
+
+        // Sample at t = 0, 10, 20, …, 80 s (all inside cycle 0
+        // and before the outage at t ≥ 90 s).
+        let mut prev = f64::INFINITY;
+        for k in 0..=8u64 {
+            let t_ns = k * 10 * OU_STEP_DT_NS;
+            let term = a.fidelity_term_at(&circuit, t_ns);
+            assert!(
+                (0.0..=1.0).contains(&term),
+                "term {term} out of [0, 1] at t={t_ns}",
+            );
+            if k > 0 {
+                assert!(
+                    term < prev,
+                    "monotonicity violated at k={k}: term {term} ≥ previous {prev}",
+                );
+            }
+            prev = term;
+        }
+    }
+
+    #[test]
+    fn fidelity_term_jumps_back_up_after_boundary_reset() {
+        use crate::OU_STEP_DT_NS;
+        let mut a = agent_with_short_calibration_and_zero_noise();
+        let circuit = CircuitExec::new(0, FidelityClass::Standard);
+        // Just before the next reset boundary: late in cycle 0.
+        let t_pre = 89 * OU_STEP_DT_NS;
+        let term_pre = a.fidelity_term_at(&circuit, t_pre);
+        // Exactly at the boundary (start of cycle 1).
+        let t_post = 100 * OU_STEP_DT_NS;
+        let term_post = a.fidelity_term_at(&circuit, t_post);
+        assert!(
+            term_post > term_pre,
+            "post-boundary term {term_post} must exceed pre-boundary term {term_pre}",
+        );
+    }
+
+    #[test]
+    fn fidelity_term_with_no_schedule_uses_only_drift_product() {
+        // No schedule attached → recency = 1.0; term = product
+        // of drift channels (or anchor fallbacks since no drift
+        // either).
+        let a = QpuAgent::new(0, sample_anchor(), IntegrationTightness::OnPrem);
+        // Need mutable agent for the call.
+        let mut a = a;
+        let circuit = CircuitExec::new(0, FidelityClass::Standard);
+        let term = a.fidelity_term_at(&circuit, 0);
+        // Sample anchor: 1q=0.999, 2q=0.993.
+        let expected = sample_anchor().fidelity_1q * sample_anchor().fidelity_2q;
+        assert!((term - expected).abs() < 1e-12);
+    }
+
+    #[test]
+    fn fidelity_term_with_mid_circuit_feedback_includes_readout() {
+        // With feedback=true the readout channel multiplies in;
+        // since readout < 1, term must be ≤ no-feedback variant.
+        let mut a = agent_with_short_calibration_and_zero_noise();
+        let no_fb = CircuitExec::new(0, FidelityClass::Standard);
+        let with_fb = CircuitExec::new(1, FidelityClass::Standard).with_mid_circuit_feedback(true);
+        let t_ns = 0;
+        let term_no = a.fidelity_term_at(&no_fb, t_ns);
+        let term_fb = a.fidelity_term_at(&with_fb, t_ns);
+        assert!(
+            term_fb <= term_no,
+            "with-feedback term {term_fb} should be ≤ no-feedback term {term_no} since readout ∈ [0, 1]",
+        );
+        assert!(term_fb > 0.0);
+        assert!(term_no > 0.0);
+    }
+
+    #[test]
+    fn fidelity_term_clamps_to_zero_one_under_pathological_anchor() {
+        // Build an agent with an anchor whose fidelity fields
+        // are out of range (e.g. 1.5 — pathological config) and
+        // assert the term still lands in [0, 1] because the
+        // public function clamps.
+        let mut anchor = sample_anchor();
+        anchor.fidelity_1q = 1.5;
+        anchor.fidelity_2q = -0.5;
+        let mut a = QpuAgent::new(0, anchor, IntegrationTightness::OnPrem);
+        let circuit = CircuitExec::new(0, FidelityClass::Standard);
+        let term = a.fidelity_term_at(&circuit, 0);
+        assert!((0.0..=1.0).contains(&term));
     }
 }
