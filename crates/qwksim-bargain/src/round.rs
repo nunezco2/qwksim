@@ -24,7 +24,10 @@
 
 use std::collections::BTreeMap;
 
+use rand_chacha::ChaCha20Rng;
+
 use qwksim_core::event::AgentId;
+use qwksim_core::rng::{ReplicateRng, StreamId};
 
 use crate::nash::nash_product;
 
@@ -90,7 +93,33 @@ pub trait BargainingAgent {
     /// per round; the agent's own bid in `current` is the
     /// *previous round's* value (or the initial value on
     /// round 0).
+    ///
+    /// **Agents with no tie-handling logic implement only this
+    /// method.** When the agent's utility has a flat maximum
+    /// over multiple bids, the agent should override
+    /// [`Self::best_response_with_tie_break`] instead and use
+    /// the rng to pick one — see T4.5 / `Stream::BargainingTieBreaker`.
     fn best_response(&self, current: &BTreeMap<AgentId, AgentBid>) -> AgentBid;
+
+    /// Tie-break-aware best-response (T4.5). The default
+    /// delegates to [`Self::best_response`] (ignores the rng),
+    /// so agents whose utility surface is strictly concave do
+    /// not need to override.
+    ///
+    /// Agents whose utility has a flat maximum across multiple
+    /// bids — e.g. integer-allocation agents where two distinct
+    /// allocations both yield the same FLAG-C utility — should
+    /// override and draw from `rng` to pick one. The rng is
+    /// keyed by `Stream::BargainingTieBreaker { round_id }` and
+    /// is *shared across every agent within a single round* —
+    /// agents draw from it in ascending `AgentId` order.
+    fn best_response_with_tie_break(
+        &self,
+        current: &BTreeMap<AgentId, AgentBid>,
+        _rng: &mut ChaCha20Rng,
+    ) -> AgentBid {
+        self.best_response(current)
+    }
 
     /// Utility of this agent under the full allocation.
     /// Feeds the Nash-product convergence check.
@@ -124,6 +153,42 @@ impl BargainingRound {
         agents: &[A],
         initial: BTreeMap<AgentId, AgentBid>,
     ) -> BargainingOutcome {
+        self.run_inner(agents, initial, None)
+    }
+
+    /// Tie-break-aware variant (T4.5). Identical to
+    /// [`Self::run`] but threads a per-round
+    /// `Stream::BargainingTieBreaker { round_id }` rng into
+    /// each agent's [`best_response_with_tie_break`](BargainingAgent::best_response_with_tie_break)
+    /// call.
+    ///
+    /// The `round_id` consumed by round `r` is
+    /// `base_round_id.wrapping_add(r as u64)`. Callers
+    /// should pick `base_round_id` to be unique per
+    /// bargaining-call within a replicate (e.g.
+    /// `base_round_id = workflow_id * R_max`); two calls
+    /// sharing a `base_round_id` share rng streams across
+    /// rounds.
+    ///
+    /// # Panics
+    ///
+    /// Same as [`Self::run`].
+    pub fn run_with_tie_break<A: BargainingAgent>(
+        &self,
+        agents: &[A],
+        initial: BTreeMap<AgentId, AgentBid>,
+        replicate: &ReplicateRng,
+        base_round_id: u64,
+    ) -> BargainingOutcome {
+        self.run_inner(agents, initial, Some((replicate, base_round_id)))
+    }
+
+    fn run_inner<A: BargainingAgent>(
+        &self,
+        agents: &[A],
+        initial: BTreeMap<AgentId, AgentBid>,
+        tie_break: Option<(&ReplicateRng, u64)>,
+    ) -> BargainingOutcome {
         assert!(!agents.is_empty(), "bargaining run: no agents");
         // Index agents by id for O(log n) lookup and BTreeMap
         // iteration order.
@@ -152,10 +217,21 @@ impl BargainingRound {
         let mut rounds = 0_u32;
         let mut converged = false;
         for r in 0..self.r_max {
+            // Build a per-round rng if tie-breaking is enabled.
+            // Done at the round granularity (not per-agent) so
+            // agents draw from a single deterministic stream in
+            // ascending AgentId order.
+            let mut rng = tie_break.map(|(replicate, base)| {
+                let round_id = base.wrapping_add(r as u64);
+                replicate.stream(StreamId::BargainingTieBreaker { round_id })
+            });
             // Iterate agents in BTreeMap (ascending id) order
             // for determinism.
             for (&id, agent) in by_id.iter() {
-                let bid = agent.best_response(&allocation);
+                let bid = match rng.as_mut() {
+                    Some(rng) => agent.best_response_with_tie_break(&allocation, rng),
+                    None => agent.best_response(&allocation),
+                };
                 allocation.insert(id, bid);
             }
             rounds = r + 1;
@@ -420,6 +496,214 @@ mod tests {
         initial.insert(1, 0.0); // agent 2 missing
         let round = BargainingRound::default_spec();
         let _ = round.run(&agents, initial);
+    }
+
+    /// T4.5 fixture: an agent whose best response is a 50/50
+    /// choice between two equal-utility plateau bids. The
+    /// override of [`best_response_with_tie_break`] uses the
+    /// shared per-round rng to pick; the default
+    /// [`best_response`] (no rng) picks the deterministic
+    /// fallback always.
+    struct PlateauTieAgent {
+        id: AgentId,
+        low: AgentBid,
+        high: AgentBid,
+    }
+    impl BargainingAgent for PlateauTieAgent {
+        fn id(&self) -> AgentId {
+            self.id
+        }
+        fn best_response(&self, _current: &BTreeMap<AgentId, AgentBid>) -> AgentBid {
+            // Deterministic fallback for the tie-break-less
+            // path: always pick the low bid.
+            self.low
+        }
+        fn best_response_with_tie_break(
+            &self,
+            _current: &BTreeMap<AgentId, AgentBid>,
+            rng: &mut ChaCha20Rng,
+        ) -> AgentBid {
+            use rand_core::RngCore;
+            // High bit of one u64 → 50/50 pick.
+            if rng.next_u64() & (1 << 63) != 0 {
+                self.high
+            } else {
+                self.low
+            }
+        }
+        fn utility(&self, allocation: &BTreeMap<AgentId, AgentBid>) -> f64 {
+            // Constant utility on the plateau: both low and
+            // high give the same value. Use a fixed offset so
+            // the Nash sum is positive.
+            let _ = allocation;
+            0.5
+        }
+        fn disagreement(&self) -> f64 {
+            -1.0
+        }
+    }
+
+    /// T4.5 acceptance gate (1/2): two runs with the same
+    /// (replicate master_seed, base_round_id) produce
+    /// byte-identical tie-break outcomes.
+    #[test]
+    fn identical_replicate_and_round_id_yield_identical_tie_break_outcomes() {
+        use qwksim_core::rng::RngHierarchy;
+        let agents = vec![
+            PlateauTieAgent {
+                id: 1,
+                low: 0.2,
+                high: 0.8,
+            },
+            PlateauTieAgent {
+                id: 2,
+                low: 0.3,
+                high: 0.7,
+            },
+            PlateauTieAgent {
+                id: 3,
+                low: 0.4,
+                high: 0.6,
+            },
+        ];
+        let mut initial = BTreeMap::new();
+        for a in &agents {
+            initial.insert(a.id, 0.0);
+        }
+        // Force the loop to run all rounds so we observe
+        // multiple tie-break draws.
+        let round = BargainingRound {
+            r_max: 8,
+            epsilon_conv: f64::NEG_INFINITY,
+        };
+        let replicate_a = RngHierarchy::new(0xCAFE_BABE).replicate(7);
+        let replicate_b = RngHierarchy::new(0xCAFE_BABE).replicate(7);
+
+        let out_a = round.run_with_tie_break(&agents, initial.clone(), &replicate_a, 42);
+        let out_b = round.run_with_tie_break(&agents, initial, &replicate_b, 42);
+
+        assert_eq!(out_a.allocation, out_b.allocation);
+        assert_eq!(out_a.rounds, out_b.rounds);
+        assert_eq!(out_a.final_nash.to_bits(), out_b.final_nash.to_bits());
+    }
+
+    /// T4.5 acceptance gate (2/2): distinct `base_round_id`s
+    /// (or distinct replicates) yield decorrelated tie-break
+    /// trajectories.
+    #[test]
+    fn distinct_round_ids_decorrelate_the_tie_break_picks() {
+        use qwksim_core::rng::RngHierarchy;
+        // Single agent, tie-break decides every round's bid.
+        let agents = vec![PlateauTieAgent {
+            id: 1,
+            low: 0.0,
+            high: 1.0,
+        }];
+        let mut initial = BTreeMap::new();
+        initial.insert(1, 0.5);
+        let round = BargainingRound {
+            r_max: 16,
+            epsilon_conv: f64::NEG_INFINITY,
+        };
+        let replicate = RngHierarchy::new(0x1234_5678).replicate(0);
+
+        // Run with two distinct base_round_ids; the final
+        // bid (decided by the LAST round's tie-break) must
+        // differ for at least one trial across a small sweep.
+        let mut saw_difference = false;
+        for base in 0..32u64 {
+            let a = round.run_with_tie_break(&agents, initial.clone(), &replicate, base);
+            let b = round.run_with_tie_break(&agents, initial.clone(), &replicate, base + 1);
+            if a.allocation[&1] != b.allocation[&1] {
+                saw_difference = true;
+                break;
+            }
+        }
+        assert!(
+            saw_difference,
+            "distinct base_round_ids never decorrelated tie-break picks across 32 trials",
+        );
+    }
+
+    #[test]
+    fn distinct_master_seeds_decorrelate_the_tie_break_picks() {
+        // Symmetric of the above: same base_round_id, different
+        // master seed → different picks.
+        use qwksim_core::rng::RngHierarchy;
+        let agents = vec![PlateauTieAgent {
+            id: 1,
+            low: 0.0,
+            high: 1.0,
+        }];
+        let mut initial = BTreeMap::new();
+        initial.insert(1, 0.5);
+        let round = BargainingRound {
+            r_max: 16,
+            epsilon_conv: f64::NEG_INFINITY,
+        };
+
+        let mut saw_difference = false;
+        for seed in 1..32u64 {
+            let rep_a = RngHierarchy::new(seed).replicate(0);
+            let rep_b = RngHierarchy::new(seed + 100).replicate(0);
+            let a = round.run_with_tie_break(&agents, initial.clone(), &rep_a, 0);
+            let b = round.run_with_tie_break(&agents, initial.clone(), &rep_b, 0);
+            if a.allocation[&1] != b.allocation[&1] {
+                saw_difference = true;
+                break;
+            }
+        }
+        assert!(
+            saw_difference,
+            "distinct master seeds never decorrelated tie-break picks across 31 trials",
+        );
+    }
+
+    #[test]
+    fn run_without_tie_break_uses_the_deterministic_fallback_method() {
+        // The legacy `run` entry point must call
+        // `best_response` (not `best_response_with_tie_break`),
+        // so agents that haven't opted in still behave the
+        // same way they did pre-T4.5.
+        let agents = vec![PlateauTieAgent {
+            id: 1,
+            low: 0.3,
+            high: 0.7,
+        }];
+        let mut initial = BTreeMap::new();
+        initial.insert(1, 0.5);
+        let round = BargainingRound {
+            r_max: 4,
+            epsilon_conv: f64::NEG_INFINITY,
+        };
+        let out = round.run(&agents, initial);
+        // PlateauTieAgent's default best_response returns
+        // `low` always.
+        assert_eq!(out.allocation[&1], 0.3);
+    }
+
+    #[test]
+    fn agents_without_tie_break_override_are_unchanged_by_run_with_tie_break() {
+        // Regression: an agent that *only* implements
+        // best_response (no override) must produce the same
+        // outcome under either entry point.
+        use qwksim_core::rng::RngHierarchy;
+        let agents = vec![
+            QuadraticAgent { id: 1, partner: 2 },
+            QuadraticAgent { id: 2, partner: 1 },
+        ];
+        let mut initial = BTreeMap::new();
+        initial.insert(1, 0.0);
+        initial.insert(2, 0.0);
+        let round = BargainingRound::default_spec();
+        let replicate = RngHierarchy::new(0xAAAA).replicate(0);
+
+        let out_plain = round.run(&agents, initial.clone());
+        let out_tie = round.run_with_tie_break(&agents, initial, &replicate, 0);
+
+        assert_eq!(out_plain.allocation, out_tie.allocation);
+        assert_eq!(out_plain.rounds, out_tie.rounds);
+        assert_eq!(out_plain.final_nash.to_bits(), out_tie.final_nash.to_bits(),);
     }
 
     #[test]
