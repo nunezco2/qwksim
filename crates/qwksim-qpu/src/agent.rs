@@ -41,6 +41,7 @@ use qwksim_core::event::{AgentId, SimTime};
 use qwksim_resources::{AdvertisedSummary, Allocation, ResourceAgent};
 use qwksim_scheduler::View;
 
+use crate::cache::CompilationCache;
 use crate::calibration::{AdmissionRejected, CalibrationSchedule};
 use crate::drift::OuDriftState;
 use crate::{IntegrationTightness, QpuAnchor};
@@ -139,6 +140,17 @@ pub struct QpuAgent {
     /// window and applies the boundary-reset to `drift` lazily
     /// on each admission.
     calibration: Option<CalibrationSchedule>,
+    /// Per-QPU compilation cache (T3.5). Always present (an
+    /// empty cache is harmless); sweep-invalidated by
+    /// [`Self::admit_circuit`] on every calibration boundary
+    /// reset.
+    cache: CompilationCache,
+    /// Simulator time of the most recent calibration-boundary
+    /// reset the **cache** has acknowledged. Tracked separately
+    /// from `drift.last_reset_at_ns` so a QpuAgent without an
+    /// attached drift (e.g. a Phase-2-era stub) still
+    /// invalidates the cache exactly once per boundary.
+    cache_last_reset_ns: SimTime,
 }
 
 impl QpuAgent {
@@ -153,7 +165,21 @@ impl QpuAgent {
             next_seq: 0,
             drift: None,
             calibration: None,
+            cache: CompilationCache::new(),
+            cache_last_reset_ns: 0,
         }
+    }
+
+    /// Read-only access to the compilation cache.
+    pub fn cache(&self) -> &CompilationCache {
+        &self.cache
+    }
+
+    /// Mutable access to the compilation cache (e.g. the
+    /// per-iteration runtime calls `cache_mut().compile_or_cache`
+    /// for each quantum task).
+    pub fn cache_mut(&mut self) -> &mut CompilationCache {
+        &mut self.cache
     }
 
     /// Attach an OU drift integrator + calibration schedule.
@@ -206,11 +232,22 @@ impl QpuAgent {
                     until: schedule.next_reset_after(now),
                 });
             }
-            if let Some(drift) = self.drift.as_mut() {
-                let most_recent = schedule.most_recent_reset_at(now);
-                if drift.last_reset_at_ns() < most_recent {
+            let most_recent = schedule.most_recent_reset_at(now);
+            let needs_reset = match self.drift.as_ref() {
+                Some(drift) => drift.last_reset_at_ns() < most_recent,
+                // No drift attached: still sweep the cache the
+                // first time we cross any boundary, but never on
+                // calls before the first boundary (`most_recent == 0`
+                // would otherwise sweep on every call before the
+                // first cycle elapses).
+                None => most_recent > 0 && self.cache_last_reset_ns < most_recent,
+            };
+            if needs_reset {
+                if let Some(drift) = self.drift.as_mut() {
                     drift.reset_to_nominal_at(most_recent);
                 }
+                self.cache.invalidate_all();
+                self.cache_last_reset_ns = most_recent;
             }
         }
         Ok(self.enqueue_circuit(exec))
